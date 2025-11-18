@@ -1,5 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { updateSegmentSchema } from '@/lib/validation'
+import { handleApiError } from '@/lib/api-error'
+import { ApiResponse } from '@/lib/api-response'
 
 // PUT /api/scripts/[key]/segments/[id] - Update a segment
 export async function PUT(
@@ -10,26 +13,23 @@ export async function PUT(
     const { id } = params
     const body = await request.json()
 
-    const { orderIndex, segmentType, templateMarkdown, variablesJson } = body
+    // Validate input
+    const validatedData = updateSegmentSchema.parse(body)
+
+    const dataToUpdate: any = {}
+    if (validatedData.orderIndex !== undefined) dataToUpdate.orderIndex = validatedData.orderIndex
+    if (validatedData.segmentType) dataToUpdate.segmentType = validatedData.segmentType
+    if (validatedData.templateMarkdown) dataToUpdate.templateMarkdown = validatedData.templateMarkdown
+    if (validatedData.variablesJson !== undefined) dataToUpdate.variablesJson = JSON.stringify(validatedData.variablesJson)
 
     const segment = await prisma.ritualScriptSegment.update({
       where: { id },
-      data: {
-        ...(orderIndex !== undefined && { orderIndex }),
-        ...(segmentType && { segmentType }),
-        ...(templateMarkdown && { templateMarkdown }),
-        ...(variablesJson !== undefined && { variablesJson: JSON.stringify(variablesJson) })
-      }
+      data: dataToUpdate
     })
 
-    return NextResponse.json(segment)
-
+    return ApiResponse.success(segment)
   } catch (error) {
-    console.error('Error updating segment:', error)
-    return NextResponse.json(
-      { error: 'Failed to update segment' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }
 
@@ -45,13 +45,8 @@ export async function DELETE(
       where: { id }
     })
 
-    return NextResponse.json({ success: true })
-
+    return ApiResponse.success({ success: true })
   } catch (error) {
-    console.error('Error deleting segment:', error)
-    return NextResponse.json(
-      { error: 'Failed to delete segment' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }

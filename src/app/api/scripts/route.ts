@@ -1,6 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import type { CreateScriptInput } from '@/lib/types'
+import { createScriptSchema } from '@/lib/validation'
+import { handleApiError, ApiErrors } from '@/lib/api-error'
+import { ApiResponse } from '@/lib/api-response'
 
 // GET /api/scripts - List all scripts
 export async function GET(request: NextRequest) {
@@ -24,50 +26,36 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: 'desc' }
     })
 
-    return NextResponse.json(scripts)
-
+    return ApiResponse.success(scripts)
   } catch (error) {
-    console.error('Error fetching scripts:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch scripts' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }
 
 // POST /api/scripts - Create a new script
 export async function POST(request: NextRequest) {
   try {
-    const body: CreateScriptInput = await request.json()
+    const body = await request.json()
 
-    const { communityId, key, title, ritualType, descriptionMarkdown } = body
-
-    if (!communityId || !key || !title || !ritualType) {
-      return NextResponse.json(
-        { error: 'communityId, key, title, and ritualType are required' },
-        { status: 400 }
-      )
-    }
+    // Validate input
+    const validatedData = createScriptSchema.parse(body)
 
     // Check if key already exists
     const existing = await prisma.ritualScript.findUnique({
-      where: { key }
+      where: { key: validatedData.key }
     })
 
     if (existing) {
-      return NextResponse.json(
-        { error: `Script with key '${key}' already exists` },
-        { status: 409 }
-      )
+      throw ApiErrors.conflict(`Script with key '${validatedData.key}' already exists`)
     }
 
     const script = await prisma.ritualScript.create({
       data: {
-        communityId,
-        key,
-        title,
-        ritualType,
-        descriptionMarkdown: descriptionMarkdown || null
+        communityId: validatedData.communityId,
+        key: validatedData.key,
+        title: validatedData.title,
+        ritualType: validatedData.ritualType,
+        descriptionMarkdown: validatedData.descriptionMarkdown || null
       },
       include: {
         segments: true,
@@ -75,13 +63,8 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    return NextResponse.json(script, { status: 201 })
-
+    return ApiResponse.created(script)
   } catch (error) {
-    console.error('Error creating script:', error)
-    return NextResponse.json(
-      { error: 'Failed to create script' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }

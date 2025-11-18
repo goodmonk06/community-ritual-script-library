@@ -1,19 +1,26 @@
 {
   "name": "community-ritual-script-library",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "typecheck": "tsc --noEmit",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
+    "db:seed:rich": "tsx prisma/seed-rich.ts",
+    "db:reset": "prisma migrate reset --force && npm run db:seed:rich",
     "db:studio": "prisma studio",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed-rich.ts"
   },
   "dependencies": {
     "next": "14.2.18",

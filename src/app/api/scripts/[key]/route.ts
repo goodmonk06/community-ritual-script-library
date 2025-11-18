@@ -1,5 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { updateScriptSchema } from '@/lib/validation'
+import { handleApiError, ApiErrors } from '@/lib/api-error'
+import { ApiResponse } from '@/lib/api-response'
 
 // GET /api/scripts/[key] - Get a specific script
 export async function GET(
@@ -20,20 +23,12 @@ export async function GET(
     })
 
     if (!script) {
-      return NextResponse.json(
-        { error: `Script with key '${key}' not found` },
-        { status: 404 }
-      )
+      throw ApiErrors.notFound('Script')
     }
 
-    return NextResponse.json(script)
-
+    return ApiResponse.success(script)
   } catch (error) {
-    console.error('Error fetching script:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch script' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }
 
@@ -46,15 +41,12 @@ export async function PUT(
     const { key } = params
     const body = await request.json()
 
-    const { title, ritualType, descriptionMarkdown } = body
+    // Validate input
+    const validatedData = updateScriptSchema.parse(body)
 
     const script = await prisma.ritualScript.update({
       where: { key },
-      data: {
-        ...(title && { title }),
-        ...(ritualType && { ritualType }),
-        ...(descriptionMarkdown !== undefined && { descriptionMarkdown })
-      },
+      data: validatedData,
       include: {
         segments: {
           orderBy: { orderIndex: 'asc' }
@@ -63,14 +55,9 @@ export async function PUT(
       }
     })
 
-    return NextResponse.json(script)
-
+    return ApiResponse.success(script)
   } catch (error) {
-    console.error('Error updating script:', error)
-    return NextResponse.json(
-      { error: 'Failed to update script' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }
 
@@ -86,13 +73,8 @@ export async function DELETE(
       where: { key }
     })
 
-    return NextResponse.json({ success: true })
-
+    return ApiResponse.success({ success: true })
   } catch (error) {
-    console.error('Error deleting script:', error)
-    return NextResponse.json(
-      { error: 'Failed to delete script' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }

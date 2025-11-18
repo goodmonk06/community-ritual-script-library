@@ -1,6 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import type { CreateVariantInput } from '@/lib/types'
+import { createVariantSchema } from '@/lib/validation'
+import { handleApiError, ApiErrors } from '@/lib/api-error'
+import { ApiResponse } from '@/lib/api-response'
 
 // POST /api/scripts/[key]/variants - Create a new variant
 export async function POST(
@@ -9,16 +11,10 @@ export async function POST(
 ) {
   try {
     const { key } = params
-    const body: Omit<CreateVariantInput, 'scriptId'> = await request.json()
+    const body = await request.json()
 
-    const { variantKey, conditionsJson } = body
-
-    if (!variantKey || !conditionsJson) {
-      return NextResponse.json(
-        { error: 'variantKey and conditionsJson are required' },
-        { status: 400 }
-      )
-    }
+    // Validate input
+    const validatedData = createVariantSchema.parse(body)
 
     // Get the script
     const script = await prisma.ritualScript.findUnique({
@@ -26,27 +22,19 @@ export async function POST(
     })
 
     if (!script) {
-      return NextResponse.json(
-        { error: `Script with key '${key}' not found` },
-        { status: 404 }
-      )
+      throw ApiErrors.notFound('Script')
     }
 
     const variant = await prisma.ritualScriptVariant.create({
       data: {
         scriptId: script.id,
-        variantKey,
-        conditionsJson: JSON.stringify(conditionsJson)
+        variantKey: validatedData.variantKey,
+        conditionsJson: JSON.stringify(validatedData.conditionsJson)
       }
     })
 
-    return NextResponse.json(variant, { status: 201 })
-
+    return ApiResponse.created(variant)
   } catch (error) {
-    console.error('Error creating variant:', error)
-    return NextResponse.json(
-      { error: 'Failed to create variant' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }

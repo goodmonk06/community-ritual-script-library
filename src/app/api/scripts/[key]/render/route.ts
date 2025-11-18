@@ -1,6 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { renderScript, combineSegments, selectVariant } from '@/lib/template-renderer'
+import { renderScriptSchema } from '@/lib/validation'
+import { handleApiError, ApiErrors } from '@/lib/api-error'
+import { ApiResponse } from '@/lib/api-response'
 import type { RenderScriptOutput } from '@/lib/types'
 
 export async function POST(
@@ -10,14 +13,9 @@ export async function POST(
   try {
     const { key } = params
     const body = await request.json()
-    const { contextJson } = body
 
-    if (!contextJson || typeof contextJson !== 'object') {
-      return NextResponse.json(
-        { error: 'contextJson is required and must be an object' },
-        { status: 400 }
-      )
-    }
+    // Validate input
+    const { contextJson } = renderScriptSchema.parse(body)
 
     // Fetch the script with segments and variants
     const script = await prisma.ritualScript.findUnique({
@@ -31,10 +29,7 @@ export async function POST(
     })
 
     if (!script) {
-      return NextResponse.json(
-        { error: `Script with key '${key}' not found` },
-        { status: 404 }
-      )
+      throw ApiErrors.notFound('Script')
     }
 
     // Select the best matching variant
@@ -68,13 +63,8 @@ export async function POST(
       selectedVariant: selectedVariantKey
     }
 
-    return NextResponse.json(output)
-
+    return ApiResponse.success(output)
   } catch (error) {
-    console.error('Error rendering script:', error)
-    return NextResponse.json(
-      { error: 'Failed to render script' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }

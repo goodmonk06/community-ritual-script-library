@@ -16,14 +16,25 @@ model RitualScript {
   title               String
   ritualType          RitualType
   descriptionMarkdown String?
+  status              ScriptStatus           @default(draft)
+  isPublic            Boolean                @default(false)
+  authorId            String?
+  estimatedDuration   Int?                   // Duration in minutes
+  metadata            String                 @default("{}") @db.JsonB
   createdAt           DateTime               @default(now())
   updatedAt           DateTime               @updatedAt
 
   segments            RitualScriptSegment[]
   variants            RitualScriptVariant[]
+  usageLogs           RitualUsageLog[]
+  snapshots           RitualSnapshot[]
+  scriptTags          ScriptTag[]
+  collectionScripts   CollectionScript[]
 
   @@index([communityId])
   @@index([ritualType])
+  @@index([status])
+  @@index([authorId])
 }
 
 model RitualScriptSegment {
@@ -56,6 +67,105 @@ model RitualScriptVariant {
   @@index([scriptId])
 }
 
+// New: Collections for grouping related scripts
+model RitualCollection {
+  id                  String             @id @default(cuid())
+  communityId         String
+  key                 String             @unique
+  title               String
+  descriptionMarkdown String?
+  isPublic            Boolean            @default(false)
+  metadata            String             @default("{}") @db.JsonB
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  collectionScripts   CollectionScript[]
+
+  @@index([communityId])
+}
+
+// Join table for Collection ↔ Script many-to-many
+model CollectionScript {
+  id           String           @id @default(cuid())
+  collectionId String
+  scriptId     String
+  orderIndex   Int              @default(0)
+  createdAt    DateTime         @default(now())
+
+  collection   RitualCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  script       RitualScript     @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, scriptId])
+  @@index([collectionId])
+  @@index([scriptId])
+}
+
+// New: Usage tracking for analytics
+model RitualUsageLog {
+  id               String       @id @default(cuid())
+  scriptId         String
+  communityId      String
+  contextJson      String       @db.JsonB
+  selectedVariant  String?
+  renderDuration   Int?         // Duration in milliseconds
+  requestMetadata  String       @default("{}") @db.JsonB
+  createdAt        DateTime     @default(now())
+
+  script           RitualScript @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+
+  @@index([scriptId])
+  @@index([communityId])
+  @@index([createdAt])
+}
+
+// New: Tags for categorization
+model RitualTag {
+  id          String      @id @default(cuid())
+  name        String      @unique
+  slug        String      @unique
+  description String?
+  color       String?     // Hex color for UI
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  scriptTags  ScriptTag[]
+
+  @@index([slug])
+}
+
+// Join table for Script ↔ Tag many-to-many
+model ScriptTag {
+  id        String       @id @default(cuid())
+  scriptId  String
+  tagId     String
+  createdAt DateTime     @default(now())
+
+  script    RitualScript @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  tag       RitualTag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([scriptId, tagId])
+  @@index([scriptId])
+  @@index([tagId])
+}
+
+// New: Version history / snapshots
+model RitualSnapshot {
+  id                  String       @id @default(cuid())
+  scriptId            String
+  version             Int
+  title               String
+  ritualType          RitualType
+  descriptionMarkdown String?
+  snapshotData        String       @db.JsonB // Full script data as JSON
+  createdBy           String?
+  createdAt           DateTime     @default(now())
+
+  script              RitualScript @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+
+  @@unique([scriptId, version])
+  @@index([scriptId])
+}
+
 enum RitualType {
   new_moon
   full_moon
@@ -69,4 +179,10 @@ enum SegmentType {
   core
   closing
   blessing
+}
+
+enum ScriptStatus {
+  draft
+  published
+  archived
 }
