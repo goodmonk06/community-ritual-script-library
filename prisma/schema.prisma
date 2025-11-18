@@ -1,0 +1,72 @@
+// This is your Prisma schema file
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model RitualScript {
+  id                  String                 @id @default(cuid())
+  communityId         String
+  key                 String                 @unique
+  title               String
+  ritualType          RitualType
+  descriptionMarkdown String?
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+
+  segments            RitualScriptSegment[]
+  variants            RitualScriptVariant[]
+
+  @@index([communityId])
+  @@index([ritualType])
+}
+
+model RitualScriptSegment {
+  id               String      @id @default(cuid())
+  scriptId         String
+  orderIndex       Int
+  segmentType      SegmentType
+  templateMarkdown String      @db.Text
+  variablesJson    String      @default("{}") @db.JsonB
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  script           RitualScript @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+
+  @@index([scriptId])
+  @@index([orderIndex])
+}
+
+model RitualScriptVariant {
+  id             String       @id @default(cuid())
+  scriptId       String
+  variantKey     String
+  conditionsJson String       @default("{}") @db.JsonB
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  script         RitualScript @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+
+  @@unique([scriptId, variantKey])
+  @@index([scriptId])
+}
+
+enum RitualType {
+  new_moon
+  full_moon
+  daily
+  other
+}
+
+enum SegmentType {
+  opening
+  transition
+  core
+  closing
+  blessing
+}

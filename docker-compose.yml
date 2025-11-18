@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: ritual-scripts-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ritual_user
+      POSTGRES_PASSWORD: ritual_password
+      POSTGRES_DB: ritual_scripts
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ritual_user -d ritual_scripts"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ritual-scripts-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql://ritual_user:ritual_password@db:5432/ritual_scripts?schema=public"
+      NEXT_PUBLIC_API_URL: "http://localhost:3000"
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    command: >
+      sh -c "
+        npx prisma migrate deploy &&
+        npx prisma db seed &&
+        node server.js
+      "
+
+volumes:
+  postgres_data:
